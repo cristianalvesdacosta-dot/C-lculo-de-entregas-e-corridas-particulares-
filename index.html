@@ -276,12 +276,12 @@
             
             <div class="form-group">
                 <label for="clientName">Seu Nome</label>
-                <input type="text" id="clientName" placeholder="Ex: João Silva">
+                <input type="text" id="clientName" placeholder="Ex: João Silva" oninput="saveInputs()">
             </div>
 
             <div class="form-group">
                 <label for="clientPhone">Seu WhatsApp</label>
-                <input type="tel" id="clientPhone" placeholder="Ex: (91) 98888-8888">
+                <input type="tel" id="clientPhone" placeholder="Ex: (91) 98888-8888" oninput="saveInputs()">
             </div>
 
             <!-- Coleta com Endereço + Número separados e botão GPS -->
@@ -289,11 +289,11 @@
                 <label for="pickupAddress">Endereço de Coleta (Retirada)</label>
                 <div class="row-fields">
                     <div class="main-field" style="position: relative;">
-                        <input type="text" id="pickupAddress" placeholder="Ex: Travessa 14 de Março, Belém">
+                        <input type="text" id="pickupAddress" placeholder="Ex: Travessa 14 de Março, Belém" oninput="saveInputs()">
                         <div id="pickupSuggestions" class="suggestions"></div>
                     </div>
                     <div class="number-field">
-                        <input type="text" id="pickupNumber" placeholder="Nº / Comp">
+                        <input type="text" id="pickupNumber" placeholder="Nº / Comp" oninput="saveInputs()">
                     </div>
                 </div>
                 <button type="button" class="gps-btn" onclick="useCurrentLocation()">📍 Usar minha localização atual (GPS)</button>
@@ -304,11 +304,11 @@
                 <label for="deliveryAddress">Endereço de Destino (Entrega)</label>
                 <div class="row-fields">
                     <div class="main-field" style="position: relative;">
-                        <input type="text" id="deliveryAddress" placeholder="Ex: Rodovia Augusto Montenegro, Belém">
+                        <input type="text" id="deliveryAddress" placeholder="Ex: Rodovia Augusto Montenegro, Belém" oninput="saveInputs()">
                         <div id="deliverySuggestions" class="suggestions"></div>
                     </div>
                     <div class="number-field">
-                        <input type="text" id="deliveryNumber" placeholder="Nº / Comp">
+                        <input type="text" id="deliveryNumber" placeholder="Nº / Comp" oninput="saveInputs()">
                     </div>
                 </div>
             </div>
@@ -359,6 +359,30 @@
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
     <script>
+        // Salvar e carregar dados automaticamente para não perder ao alternar para o banco
+        function saveInputs() {
+            localStorage.setItem('clientName', document.getElementById('clientName').value);
+            localStorage.setItem('clientPhone', document.getElementById('clientPhone').value);
+            localStorage.setItem('pickupAddress', document.getElementById('pickupAddress').value);
+            localStorage.setItem('pickupNumber', document.getElementById('pickupNumber').value);
+            localStorage.setItem('deliveryAddress', document.getElementById('deliveryAddress').value);
+            localStorage.setItem('deliveryNumber', document.getElementById('deliveryNumber').value);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if(localStorage.getItem('clientName')) document.getElementById('clientName').value = localStorage.getItem('clientName');
+            if(localStorage.getItem('clientPhone')) document.getElementById('clientPhone').value = localStorage.getItem('clientPhone');
+            if(localStorage.getItem('pickupAddress')) document.getElementById('pickupAddress').value = localStorage.getItem('pickupAddress');
+            if(localStorage.getItem('pickupNumber')) document.getElementById('pickupNumber').value = localStorage.getItem('pickupNumber');
+            if(localStorage.getItem('deliveryAddress')) document.getElementById('deliveryAddress').value = localStorage.getItem('deliveryAddress');
+            if(localStorage.getItem('deliveryNumber')) document.getElementById('deliveryNumber').value = localStorage.getItem('deliveryNumber');
+
+            // Se já tiver endereços salvos, recalcula a rota ao abrir a página
+            if(document.getElementById('pickupAddress').value && document.getElementById('deliveryAddress').value) {
+                checkAndCalculateRoute();
+            }
+        });
+
         // Inicializar o mapa centrado em Belém/PA
         const map = L.map('map').setView([-1.4558, -48.4902], 13);
 
@@ -380,6 +404,7 @@
             let timeout = null;
 
             input.addEventListener('input', function() {
+                saveInputs();
                 clearTimeout(timeout);
                 const query = this.value;
                 if (query.length < 3) {
@@ -401,6 +426,7 @@
                                     div.onclick = function() {
                                         input.value = item.display_name;
                                         suggestions.style.display = 'none';
+                                        saveInputs();
                                         
                                         const coords = L.latLng(parseFloat(item.lat), parseFloat(item.lon));
                                         if (isPickup) {
@@ -457,12 +483,14 @@
                         }
                         document.getElementById('loadingStatus').style.display = 'none';
                         map.setView(pickupCoords, 16);
+                        saveInputs();
                         checkAndCalculateRoute();
                     })
                     .catch(() => {
                         document.getElementById('pickupAddress').value = `Localização Atual (GPS)`;
                         document.getElementById('loadingStatus').style.display = 'none';
                         map.setView(pickupCoords, 16);
+                        saveInputs();
                         checkAndCalculateRoute();
                     });
 
@@ -605,27 +633,15 @@
                 deliveryMapLink = `https://www.google.com/maps/search/?api=1&query=${deliveryCoords.lat},${deliveryCoords.lng}`;
             }
 
-            const message = `*Nova Solicitação de Entrega/Transporte*
-
-` +
-                `👤 *Nome:* ${name}
-` +
-                `📱 *Telefone:* ${phone}
-` +
-                `📍 *Coleta:* ${pickup}
-` +
-                `🗺️ *Abrir Coleta no Maps:* ${pickupMapLink}
-
-` +
-                `🏁 *Destino:* ${delivery}
-` +
-                `🗺️ *Abrir Destino no Maps:* ${deliveryMapLink}
-
-` +
-                `📏 *Distância:* ${calculatedDistanceKm.toFixed(2)} km
-` +
-                `💰 *Valor Total:* R$ ${calculatedFinalPrice.toFixed(2).replace('.', ',')}
-` +
+            const message = `*Nova Solicitação de Entrega/Transporte*\n\n` +
+                `👤 *Nome:* ${name}\n` +
+                `📱 *Telefone:* ${phone}\n` +
+                `📍 *Coleta:* ${pickup}\n` +
+                `🗺️ *Abrir Coleta no Maps:* ${pickupMapLink}\n\n` +
+                `🏁 *Destino:* ${delivery}\n` +
+                `🗺️ *Abrir Destino no Maps:* ${deliveryMapLink}\n\n` +
+                `📏 *Distância:* ${calculatedDistanceKm.toFixed(2)} km\n` +
+                `💰 *Valor Total:* R$ ${calculatedFinalPrice.toFixed(2).replace('.', ',')}\n` +
                 `💳 *Forma de Pagamento:* Pix realizado`;
 
             const whatsappUrl = `https://wa.me/5591992324179?text=${encodeURIComponent(message)}`;
