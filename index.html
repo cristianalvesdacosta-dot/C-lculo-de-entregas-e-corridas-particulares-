@@ -109,21 +109,38 @@
         }
 
         .gps-btn {
-            background: none;
-            border: none;
-            color: #2563eb;
-            font-size: 0.8rem;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+            font-size: 0.85rem;
             font-weight: 600;
             cursor: pointer;
-            display: inline-flex;
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
             align-items: center;
-            gap: 4px;
-            margin-top: 6px;
-            padding: 2px 0;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 8px;
         }
 
         .gps-btn:hover {
-            text-decoration: underline;
+            background: #e2e8f0;
+        }
+
+        .live-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+        }
+
+        .live-btn.active {
+            background: #16a34a;
+        }
+
+        .live-btn:hover {
+            opacity: 0.9;
         }
 
         .suggestions {
@@ -270,9 +287,17 @@
     </header>
 
     <div class="container">
-        <!-- Dados do Cliente e Endereços -->
+        <!-- Painel do Motoboy / Rastreamento Firebase -->
+        <div class="card" style="background: #f8fafc; border: 1px dashed #cbd5e1;">
+            <h2>🏍️ Painel do Entregador (GPS & Nuvem)</h2>
+            <button type="button" class="gps-btn" onclick="updateMyGPS()">📍 Atualizar minha posição atual</button>
+            <button type="button" id="btnToggleLive" class="gps-btn live-btn" onclick="toggleLiveTracking()">🔴 Ligar Transmissão ao Vivo (Firebase)</button>
+            <p id="myGpsStatus" style="font-size: 0.75rem; color: #64748b; margin-top: 6px; text-align: center;">Usando Belém (Centro) como base padrão. Ative a transmissão quando estiver rodando.</p>
+        </div>
+
+        <!-- Dados do Pedido -->
         <div class="card">
-            <h2>📍 Dados da Solicitação</h2>
+            <h2>📍 Dados do Pedido</h2>
             
             <div class="form-group">
                 <label for="clientName">Seu Nome</label>
@@ -284,7 +309,7 @@
                 <input type="tel" id="clientPhone" placeholder="Ex: (91) 98888-8888" oninput="saveInputs()">
             </div>
 
-            <!-- Coleta com Endereço + Número separados e botão GPS -->
+            <!-- Coleta -->
             <div class="form-group">
                 <label for="pickupAddress">Endereço de Coleta (Retirada)</label>
                 <div class="row-fields">
@@ -296,10 +321,9 @@
                         <input type="text" id="pickupNumber" placeholder="Nº / Comp" oninput="saveInputs()">
                     </div>
                 </div>
-                <button type="button" class="gps-btn" onclick="useCurrentLocation()">📍 Usar minha localização atual (GPS)</button>
             </div>
 
-            <!-- Destino com Endereço + Número separados -->
+            <!-- Destino -->
             <div class="form-group">
                 <label for="deliveryAddress">Endereço de Destino (Entrega)</label>
                 <div class="row-fields">
@@ -313,7 +337,7 @@
                 </div>
             </div>
 
-            <div class="loading" id="loadingStatus">Calculando rota no mapa...</div>
+            <div class="loading" id="loadingStatus">Calculando rotas e distâncias...</div>
             <div id="map"></div>
         </div>
 
@@ -322,15 +346,19 @@
             <h2>💰 Resumo do Valor</h2>
             <div class="summary-box">
                 <div class="summary-row">
-                    <span>Distância estimada:</span>
+                    <span>Distância até a Coleta:</span>
+                    <strong id="myDistText">0 km</strong>
+                </div>
+                <div class="summary-row" id="deslocamentoRow" style="color: #16a34a; font-weight: 500;">
+                    <span>Custo de Deslocamento (>4km):</span>
+                    <strong id="deslocamentoText">Grátis (Até 4 km)</strong>
+                </div>
+                <div class="summary-row">
+                    <span>Distância da Entrega (Coleta ➔ Destino):</span>
                     <strong id="distText">0 km</strong>
                 </div>
                 <div class="summary-row">
-                    <span>Tarifa Base:</span>
-                    <span>R$ 3,00</span>
-                </div>
-                <div class="summary-row">
-                    <span>Valor por Km (R$ 1,50):</span>
+                    <span>Base + Km da Entrega:</span>
                     <span id="kmValueText">R$ 0,00</span>
                 </div>
                 <div class="summary-row total">
@@ -346,7 +374,7 @@
                 <p style="font-size: 0.9rem; font-weight: 600; color: #166534;">Chave Pix (Aleatória):</p>
                 <div class="pix-key" id="pixKeyText">29a7259f-4483-41cc-8dbc-2c40eda657fd</div>
                 <button class="copy-btn" onclick="copyPixKey()">Copiar Chave Pix</button>
-                <p style="font-size: 0.75rem; color: #64748b; margin-top: 10px;">Após realizar o pagamento, clique no botão abaixo para enviar o pedido com o comprovante/detalhes.</p>
+                <p style="font-size: 0.75rem; color: #64748b; margin-top: 10px;">Após realizar o pagamento, clique no botão abaixo para enviar o pedido com os detalhes.</p>
             </div>
 
             <button class="btn btn-success" id="btnWhatsapp" style="display: none;" onclick="sendToWhatsapp()">Enviar Pedido no WhatsApp</button>
@@ -358,8 +386,31 @@
     <!-- Leaflet Routing Machine JS -->
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
     <script>
-        // Salvar e carregar dados automaticamente para não perder ao alternar para o banco
+        // Configuração do seu Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB08qBEIUkTCEv6ZMLdQuenJ4wI1w83V9I",
+            authDomain: "rotacertagps-9ff13.firebaseapp.com",
+            databaseURL: "https://rotacertagps-9ff13-default-rtdb.firebaseio.com",
+            projectId: "rotacertagps-9ff13",
+            storageBucket: "rotacertagps-9ff13.appspot.com",
+            messagingSenderId: "696765090417",
+            appId: "1:696765090417:web:d663b9c1b38f8f416aef7f",
+            measurementId: "G-8ND75MXQ90"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let myCurrentCoords = L.latLng(-1.4558, -48.4902); 
+        let watchId = null;
+        let isLiveActive = false;
+        let motoMarker = null;
+
         function saveInputs() {
             localStorage.setItem('clientName', document.getElementById('clientName').value);
             localStorage.setItem('clientPhone', document.getElementById('clientPhone').value);
@@ -377,27 +428,112 @@
             if(localStorage.getItem('deliveryAddress')) document.getElementById('deliveryAddress').value = localStorage.getItem('deliveryAddress');
             if(localStorage.getItem('deliveryNumber')) document.getElementById('deliveryNumber').value = localStorage.getItem('deliveryNumber');
 
-            // Se já tiver endereços salvos, recalcula a rota ao abrir a página
+            if(localStorage.getItem('myLat') && localStorage.getItem('myLon')) {
+                myCurrentCoords = L.latLng(parseFloat(localStorage.getItem('myLat')), parseFloat(localStorage.getItem('myLon')));
+                document.getElementById('myGpsStatus').innerText = 'Sua posição atual está salva e ativa!';
+            }
+
+            // Ouve a posição do motoboy em tempo real do Firebase (caso o cliente queira ver a moto no mapa)
+            db.ref('entregador/posicao').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data && data.lat && data.lon) {
+                    const liveLatLng = L.latLng(data.lat, data.lon);
+                    if (!motoMarker) {
+                        motoMarker = L.marker(liveLatLng, {
+                            title: 'Moto do Entregador'
+                        }).addTo(map).bindPopup('Moto do Cristian em Tempo Real 🏍️');
+                    } else {
+                        motoMarker.setLatLng(liveLatLng);
+                    }
+                }
+            });
+
             if(document.getElementById('pickupAddress').value && document.getElementById('deliveryAddress').value) {
-                checkAndCalculateRoute();
+                calculateAll();
             }
         });
 
-        // Inicializar o mapa centrado em Belém/PA
-        const map = L.map('map').setView([-1.4558, -48.4902], 13);
+        function updateMyGPS() {
+            if (!navigator.geolocation) {
+                alert('Seu navegador não suporta GPS.');
+                return;
+            }
+            document.getElementById('myGpsStatus').innerText = 'Atualizando sua posição via GPS...';
+            navigator.geolocation.getCurrentPosition(function(position) {
+                myCurrentCoords = L.latLng(position.coords.latitude, position.coords.longitude);
+                localStorage.setItem('myLat', position.coords.latitude);
+                localStorage.setItem('myLon', position.coords.longitude);
+                
+                // Envia para o Firebase
+                db.ref('entregador/posicao').set({
+                    lat: position.coords.latitude,
+                    lon: position.coords.longitude,
+                    timestamp: Date.now()
+                });
 
+                document.getElementById('myGpsStatus').innerText = 'Sua posição atual foi atualizada com sucesso!';
+                if(document.getElementById('pickupAddress').value) {
+                    calculateAll();
+                }
+            }, function() {
+                alert('Não foi possível obter sua localização. Verifique o GPS.');
+                document.getElementById('myGpsStatus').innerText = 'Erro ao obter GPS. Usando base padrão.';
+            }, { timeout: 10000, enableHighAccuracy: true });
+        }
+
+        function toggleLiveTracking() {
+            const btn = document.getElementById('btnToggleLive');
+            if (!isLiveActive) {
+                if (!navigator.geolocation) {
+                    alert('Seu navegador não suporta GPS.');
+                    return;
+                }
+                isLiveActive = true;
+                btn.classList.add('active');
+                btn.innerText = '🟢 Transmissão ao Vivo Ativa (Parar)';
+                document.getElementById('myGpsStatus').innerText = 'Transmitindo sua localização em tempo real para a nuvem...';
+
+                watchId = navigator.geolocation.watchPosition(function(position) {
+                    myCurrentCoords = L.latLng(position.coords.latitude, position.coords.longitude);
+                    localStorage.setItem('myLat', position.coords.latitude);
+                    localStorage.setItem('myLon', position.coords.longitude);
+
+                    // Salva no Firebase continuamente
+                    db.ref('entregador/posicao').set({
+                        lat: position.coords.latitude,
+                        lon: position.coords.longitude,
+                        timestamp: Date.now()
+                    });
+                }, function(error) {
+                    console.error('Erro no rastreamento contínuo: ', error);
+                }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+
+            } else {
+                isLiveActive = false;
+                btn.classList.remove('active');
+                btn.innerText = '🔴 Ligar Transmissão ao Vivo (Firebase)';
+                document.getElementById('myGpsStatus').innerText = 'Transmissão pausada.';
+                if (watchId !== null) {
+                    navigator.geolocation.clearWatch(watchId);
+                    watchId = null;
+                }
+            }
+        }
+
+        const map = L.map('map').setView([-1.4558, -48.4902], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
         let routingControl = null;
-        let calculatedDistanceKm = 0;
+        let deliveryDistanceKm = 0;
+        let myToPickupDistanceKm = 0;
         let calculatedFinalPrice = 0;
+        let deslocamentoFee = 0;
         let pickupCoords = null;
         let deliveryCoords = null;
 
-        // Função para autocomplete simples via Nominatim (OpenStreetMap)
         function setupAutocomplete(inputId, suggestionsId, isPickup) {
             const input = document.getElementById(inputId);
             const suggestions = document.getElementById(suggestionsId);
@@ -429,14 +565,10 @@
                                         saveInputs();
                                         
                                         const coords = L.latLng(parseFloat(item.lat), parseFloat(item.lon));
-                                        if (isPickup) {
-                                            pickupCoords = coords;
-                                            map.setView(pickupCoords, 15);
-                                        } else {
-                                            deliveryCoords = coords;
-                                        }
+                                        if (isPickup) pickupCoords = coords;
+                                        else deliveryCoords = coords;
                                         
-                                        checkAndCalculateRoute();
+                                        calculateAll();
                                     };
                                     suggestions.appendChild(div);
                                 });
@@ -458,57 +590,9 @@
         setupAutocomplete('pickupAddress', 'pickupSuggestions', true);
         setupAutocomplete('deliveryAddress', 'deliverySuggestions', false);
 
-        // Usar Geolocalização do Navegador (GPS) para Coleta
-        function useCurrentLocation() {
-            if (!navigator.geolocation) {
-                alert('Seu navegador não suporta geolocalização.');
-                return;
-            }
-
-            document.getElementById('loadingStatus').innerText = 'Obtendo sua localização atual...';
-            document.getElementById('loadingStatus').style.display = 'block';
-
-            navigator.geolocation.getCurrentPosition(function(position) {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                pickupCoords = L.latLng(lat, lon);
-
-                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data && data.display_name) {
-                            document.getElementById('pickupAddress').value = data.display_name;
-                        } else {
-                            document.getElementById('pickupAddress').value = `Localização Atual (GPS)`;
-                        }
-                        document.getElementById('loadingStatus').style.display = 'none';
-                        map.setView(pickupCoords, 16);
-                        saveInputs();
-                        checkAndCalculateRoute();
-                    })
-                    .catch(() => {
-                        document.getElementById('pickupAddress').value = `Localização Atual (GPS)`;
-                        document.getElementById('loadingStatus').style.display = 'none';
-                        map.setView(pickupCoords, 16);
-                        saveInputs();
-                        checkAndCalculateRoute();
-                    });
-
-            }, function(error) {
-                document.getElementById('loadingStatus').style.display = 'none';
-                alert('Não foi possível obter sua localização. Verifique as permissões do GPS.');
-            }, { timeout: 10000, enableHighAccuracy: true });
-        }
-
-        function geocodeAddress(address, isPickup, callback) {
-            if (isPickup && pickupCoords) {
-                callback(pickupCoords);
-                return;
-            }
-            if (!isPickup && deliveryCoords) {
-                callback(deliveryCoords);
-                return;
-            }
+        function geocode(address, isPickup, callback) {
+            if (isPickup && pickupCoords) { callback(pickupCoords); return; }
+            if (!isPickup && deliveryCoords) { callback(deliveryCoords); return; }
 
             fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
                 .then(res => res.json())
@@ -525,23 +609,23 @@
                 .catch(() => callback(null));
         }
 
-        function checkAndCalculateRoute() {
+        function calculateAll() {
             const pickup = document.getElementById('pickupAddress').value;
             const delivery = document.getElementById('deliveryAddress').value;
 
             if (!pickup || !delivery) return;
 
             document.getElementById('loadingStatus').style.display = 'block';
-            document.getElementById('loadingStatus').innerText = 'Calculando rota no mapa...';
+            document.getElementById('loadingStatus').innerText = 'Calculando distâncias e rotas...';
 
-            geocodeAddress(pickup, true, function(latLngPickup) {
+            geocode(pickup, true, function(latLngPickup) {
                 if (!latLngPickup) {
                     alert('Não foi possível localizar o endereço de coleta.');
                     document.getElementById('loadingStatus').style.display = 'none';
                     return;
                 }
 
-                geocodeAddress(delivery, false, function(latLngDelivery) {
+                geocode(delivery, false, function(latLngDelivery) {
                     if (!latLngDelivery) {
                         alert('Não foi possível localizar o endereço de destino.');
                         document.getElementById('loadingStatus').style.display = 'none';
@@ -554,6 +638,22 @@
                         map.removeControl(routingControl);
                     }
 
+                    // Distância de você até a Coleta
+                    myToPickupDistanceKm = myCurrentCoords.distanceTo(latLngPickup) / 1000;
+
+                    // Regra: Até 4km grátis, acima de 4km cobra exatamente o custo de R$ 0,49 por km excedente
+                    if (myToPickupDistanceKm > 4.0) {
+                        let kmExcedente = myToPickupDistanceKm - 4.0;
+                        deslocamentoFee = kmExcedente * 0.49; // Custo exato de R$ 0,49/km
+                        document.getElementById('deslocamentoText').innerText = `+ R$ ${deslocamentoFee.toFixed(2).replace('.', ',')} (${myToPickupDistanceKm.toFixed(1)} km de você - custo)`;
+                        document.getElementById('deslocamentoRow').style.color = '#d97706';
+                    } else {
+                        deslocamentoFee = 0;
+                        document.getElementById('deslocamentoText').innerText = `Grátis (${myToPickupDistanceKm.toFixed(1)} km de você)`;
+                        document.getElementById('deslocamentoRow').style.color = '#16a34a';
+                    }
+
+                    // Rota principal da entrega (Coleta ➔ Destino)
                     routingControl = L.Routing.control({
                         waypoints: [latLngPickup, latLngDelivery],
                         routeWhileDragging: false,
@@ -566,19 +666,22 @@
                     }).addTo(map);
 
                     routingControl.on('routesfound', function(e) {
-                        const routes = e.routes;
-                        const summary = routes[0].summary;
-                        const distanceMeters = summary.totalDistance;
-                        calculatedDistanceKm = distanceMeters / 1000;
+                        const summary = e.routes[0].summary;
+                        deliveryDistanceKm = summary.totalDistance / 1000;
 
                         const baseRate = 3.00;
                         const kmRate = 1.50;
-                        let rawValue = baseRate + (calculatedDistanceKm * kmRate);
+                        let rawDeliveryValue = baseRate + (deliveryDistanceKm * kmRate);
                         
-                        calculatedFinalPrice = rawValue < 10.00 ? 10.00 : rawValue;
+                        // Tarifa mínima de 10 reais para a entrega até 4km
+                        let finalDeliveryValue = rawDeliveryValue < 10.00 ? 10.00 : rawDeliveryValue;
 
-                        document.getElementById('distText').innerText = calculatedDistanceKm.toFixed(2) + ' km';
-                        document.getElementById('kmValueText').innerText = 'R$ ' + (calculatedDistanceKm * kmRate).toFixed(2).replace('.', ',');
+                        // Soma entrega + custo exato de deslocamento (R$ 0,49/km) se estiver longe
+                        calculatedFinalPrice = finalDeliveryValue + deslocamentoFee;
+
+                        document.getElementById('myDistText').innerText = myToPickupDistanceKm.toFixed(2) + ' km';
+                        document.getElementById('distText').innerText = deliveryDistanceKm.toFixed(2) + ' km';
+                        document.getElementById('kmValueText').innerText = 'R$ ' + finalDeliveryValue.toFixed(2).replace('.', ',');
                         document.getElementById('totalText').innerText = 'R$ ' + calculatedFinalPrice.toFixed(2).replace('.', ',');
                         
                         document.getElementById('summaryCard').style.display = 'block';
@@ -633,18 +736,19 @@
                 deliveryMapLink = `https://www.google.com/maps/search/?api=1&query=${deliveryCoords.lat},${deliveryCoords.lng}`;
             }
 
-            const message = `*Nova Solicitação de Entrega/Transporte*\n\n` +
+            const message = `*Nova Solicitação de Entrega*\n\n` +
                 `👤 *Nome:* ${name}\n` +
                 `📱 *Telefone:* ${phone}\n` +
                 `📍 *Coleta:* ${pickup}\n` +
                 `🗺️ *Abrir Coleta no Maps:* ${pickupMapLink}\n\n` +
                 `🏁 *Destino:* ${delivery}\n` +
                 `🗺️ *Abrir Destino no Maps:* ${deliveryMapLink}\n\n` +
-                `📏 *Distância:* ${calculatedDistanceKm.toFixed(2)} km\n` +
-                `💰 *Valor Total:* R$ ${calculatedFinalPrice.toFixed(2).replace('.', ',')}\n` +
+                `🏍️ *Sua Distância até Coleta:* ${myToPickupDistanceKm.toFixed(2)} km\n` +
+                `📏 *Distância da Entrega:* ${deliveryDistanceKm.toFixed(2)} km\n` +
+                `💰 *Valor Total (com custo de deslocamento):* R$ ${calculatedFinalPrice.toFixed(2).replace('.', ',')}\n` +
                 `💳 *Forma de Pagamento:* Pix realizado`;
 
-            const whatsappUrl = `https://wa.me/5591992324179?text=${encodeURIComponent(message)}`;
+            const whatsappUrl = `https://wa.me/5519997648211?text=${encodeURIComponent(message)}`;
             window.open(whatsappUrl, '_blank');
         }
     </script>
