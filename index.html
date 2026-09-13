@@ -176,6 +176,19 @@
             border: 1px solid #e2e8f0;
         }
 
+        /* Estilo personalizado para o ícone da moto preta no mapa */
+        .moto-marker-icon {
+            background: #0f172a;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            color: #ffffff;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+        }
+
         .summary-box {
             background: #f8fafc;
             border-radius: 8px;
@@ -287,12 +300,12 @@
     </header>
 
     <div class="container">
-        <!-- Painel do Motoboy / Rastreamento Firebase -->
+        <!-- Painel do Motoboy com os DOIS botões de GPS -->
         <div class="card" style="background: #f8fafc; border: 1px dashed #cbd5e1;">
             <h2>🏍️ Painel do Entregador (GPS & Nuvem)</h2>
-            <button type="button" class="gps-btn" onclick="updateMyGPS()">📍 Atualizar minha posição atual</button>
+            <button type="button" class="gps-btn" onclick="updateMyGPS()">📍 Usar minha localização atual</button>
             <button type="button" id="btnToggleLive" class="gps-btn live-btn" onclick="toggleLiveTracking()">🔴 Ligar Transmissão ao Vivo (Firebase)</button>
-            <p id="myGpsStatus" style="font-size: 0.75rem; color: #64748b; margin-top: 6px; text-align: center;">Usando Belém (Centro) como base padrão. Ative a transmissão quando estiver rodando.</p>
+            <p id="myGpsStatus" style="font-size: 0.75rem; color: #64748b; margin-top: 6px; text-align: center;">Usando Belém (Centro) como base padrão. Clique em atualizar antes de calcular.</p>
         </div>
 
         <!-- Dados do Pedido -->
@@ -411,6 +424,14 @@
         let isLiveActive = false;
         let motoMarker = null;
 
+        // Ícone personalizado de moto pequena preta
+        const blackMotoIcon = L.divIcon({
+            className: 'moto-marker-icon',
+            html: '🏍️',
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+        });
+
         function saveInputs() {
             localStorage.setItem('clientName', document.getElementById('clientName').value);
             localStorage.setItem('clientPhone', document.getElementById('clientPhone').value);
@@ -428,23 +449,27 @@
             if(localStorage.getItem('deliveryAddress')) document.getElementById('deliveryAddress').value = localStorage.getItem('deliveryAddress');
             if(localStorage.getItem('deliveryNumber')) document.getElementById('deliveryNumber').value = localStorage.getItem('deliveryNumber');
 
-            if(localStorage.getItem('myLat') && localStorage.getItem('myLon')) {
-                myCurrentCoords = L.latLng(parseFloat(localStorage.getItem('myLat')), parseFloat(localStorage.getItem('myLon')));
-                document.getElementById('myGpsStatus').innerText = 'Sua posição atual está salva e ativa!';
+            if(localStorage.getItem('pixShown') === 'true') {
+                document.getElementById('pixArea').style.display = 'block';
+                document.getElementById('btnPay').style.display = 'none';
+                document.getElementById('btnWhatsapp').style.display = 'block';
             }
 
-            // Ouve a posição do motoboy em tempo real do Firebase (caso o cliente queira ver a moto no mapa)
+            if(localStorage.getItem('myLat') && localStorage.getItem('myLon')) {
+                const savedLat = parseFloat(localStorage.getItem('myLat'));
+                const savedLon = parseFloat(localStorage.getItem('myLon'));
+                myCurrentCoords = L.latLng(savedLat, savedLon);
+                document.getElementById('myGpsStatus').innerText = 'Sua posição atual está salva!';
+                
+                // Exibe a moto no mapa ao carregar se já houver posição salva
+                updateMotoMarkerOnMap(myCurrentCoords);
+            }
+
             db.ref('entregador/posicao').on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (data && data.lat && data.lon) {
                     const liveLatLng = L.latLng(data.lat, data.lon);
-                    if (!motoMarker) {
-                        motoMarker = L.marker(liveLatLng, {
-                            title: 'Moto do Entregador'
-                        }).addTo(map).bindPopup('Moto do Cristian em Tempo Real 🏍️');
-                    } else {
-                        motoMarker.setLatLng(liveLatLng);
-                    }
+                    updateMotoMarkerOnMap(liveLatLng);
                 }
             });
 
@@ -453,25 +478,38 @@
             }
         });
 
+        function updateMotoMarkerOnMap(latLng) {
+            if (!motoMarker) {
+                motoMarker = L.marker(latLng, {
+                    icon: blackMotoIcon,
+                    title: 'Moto do Entregador'
+                }).addTo(map).bindPopup('Moto do Cristian em Tempo Real 🏍️');
+            } else {
+                motoMarker.setLatLng(latLng);
+            }
+        }
+
         function updateMyGPS() {
             if (!navigator.geolocation) {
                 alert('Seu navegador não suporta GPS.');
                 return;
             }
-            document.getElementById('myGpsStatus').innerText = 'Atualizando sua posição via GPS...';
+            document.getElementById('myGpsStatus').innerText = 'Obtendo sua localização atual...';
             navigator.geolocation.getCurrentPosition(function(position) {
                 myCurrentCoords = L.latLng(position.coords.latitude, position.coords.longitude);
                 localStorage.setItem('myLat', position.coords.latitude);
                 localStorage.setItem('myLon', position.coords.longitude);
                 
-                // Envia para o Firebase
                 db.ref('entregador/posicao').set({
                     lat: position.coords.latitude,
                     lon: position.coords.longitude,
                     timestamp: Date.now()
                 });
 
-                document.getElementById('myGpsStatus').innerText = 'Sua posição atual foi atualizada com sucesso!';
+                updateMotoMarkerOnMap(myCurrentCoords);
+                map.setView(myCurrentCoords, 15);
+
+                document.getElementById('myGpsStatus').innerText = 'Sua localização atual foi definida com sucesso!';
                 if(document.getElementById('pickupAddress').value) {
                     calculateAll();
                 }
@@ -498,12 +536,13 @@
                     localStorage.setItem('myLat', position.coords.latitude);
                     localStorage.setItem('myLon', position.coords.longitude);
 
-                    // Salva no Firebase continuamente
                     db.ref('entregador/posicao').set({
                         lat: position.coords.latitude,
                         lon: position.coords.longitude,
                         timestamp: Date.now()
                     });
+
+                    updateMotoMarkerOnMap(myCurrentCoords);
                 }, function(error) {
                     console.error('Erro no rastreamento contínuo: ', error);
                 }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
@@ -638,13 +677,11 @@
                         map.removeControl(routingControl);
                     }
 
-                    // Distância de você até a Coleta
                     myToPickupDistanceKm = myCurrentCoords.distanceTo(latLngPickup) / 1000;
 
-                    // Regra: Até 4km grátis, acima de 4km cobra exatamente o custo de R$ 0,49 por km excedente
                     if (myToPickupDistanceKm > 4.0) {
                         let kmExcedente = myToPickupDistanceKm - 4.0;
-                        deslocamentoFee = kmExcedente * 0.49; // Custo exato de R$ 0,49/km
+                        deslocamentoFee = kmExcedente * 0.49;
                         document.getElementById('deslocamentoText').innerText = `+ R$ ${deslocamentoFee.toFixed(2).replace('.', ',')} (${myToPickupDistanceKm.toFixed(1)} km de você - custo)`;
                         document.getElementById('deslocamentoRow').style.color = '#d97706';
                     } else {
@@ -653,7 +690,6 @@
                         document.getElementById('deslocamentoRow').style.color = '#16a34a';
                     }
 
-                    // Rota principal da entrega (Coleta ➔ Destino)
                     routingControl = L.Routing.control({
                         waypoints: [latLngPickup, latLngDelivery],
                         routeWhileDragging: false,
@@ -672,11 +708,8 @@
                         const baseRate = 3.00;
                         const kmRate = 1.50;
                         let rawDeliveryValue = baseRate + (deliveryDistanceKm * kmRate);
-                        
-                        // Tarifa mínima de 10 reais para a entrega até 4km
                         let finalDeliveryValue = rawDeliveryValue < 10.00 ? 10.00 : rawDeliveryValue;
 
-                        // Soma entrega + custo exato de deslocamento (R$ 0,49/km) se estiver longe
                         calculatedFinalPrice = finalDeliveryValue + deslocamentoFee;
 
                         document.getElementById('myDistText').innerText = myToPickupDistanceKm.toFixed(2) + ' km';
@@ -700,6 +733,7 @@
                 return;
             }
 
+            localStorage.setItem('pixShown', 'true');
             document.getElementById('pixArea').style.display = 'block';
             document.getElementById('btnPay').style.display = 'none';
             document.getElementById('btnWhatsapp').style.display = 'block';
@@ -708,7 +742,7 @@
         function copyPixKey() {
             const keyText = document.getElementById('pixKeyText').innerText;
             navigator.clipboard.writeText(keyText).then(() => {
-                alert('Chave Pix copiada com sucesso!');
+                alert('Chave Pix copiada com sucesso! Agora você pode ir ao banco pagar e depois voltar aqui para enviar o pedido.');
             }).catch(err => {
                 console.error('Erro ao copiar chave pix: ', err);
             });
@@ -749,6 +783,9 @@
                 `💳 *Forma de Pagamento:* Pix realizado`;
 
             const whatsappUrl = `https://wa.me/5519997648211?text=${encodeURIComponent(message)}`;
+            
+            localStorage.clear();
+            
             window.open(whatsappUrl, '_blank');
         }
     </script>
