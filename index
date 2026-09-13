@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cristian Alves – Entrega e Transporte Particular</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet Routing Machine CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: #f4f7f6;
+            color: #333;
+            padding-bottom: 40px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            color: white;
+            padding: 20px 16px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        header p {
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 16px auto;
+            padding: 0 12px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 16px;
+        }
+
+        .card h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .row-fields {
+            display: flex;
+            gap: 8px;
+        }
+
+        .row-fields .main-field {
+            flex: 3;
+            position: relative;
+        }
+
+        .row-fields .number-field {
+            flex: 1;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+        }
+
+        .gps-btn {
+            background: none;
+            border: none;
+            color: #2563eb;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 6px;
+            padding: 2px 0;
+        }
+
+        .gps-btn:hover {
+            text-decoration: underline;
+        }
+
+        .suggestions {
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            position: absolute;
+            width: 100%;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .suggestion-item {
+            padding: 10px 12px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .suggestion-item:hover {
+            background-color: #f8fafc;
+        }
+
+        #map {
+            width: 100%;
+            height: 220px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .summary-box {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 14px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            color: #475569;
+        }
+
+        .summary-row.total {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #0f172a;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 10px;
+            margin-top: 8px;
+            margin-bottom: 0;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #2563eb;
+            color: white;
+            margin-top: 10px;
+        }
+
+        .btn-primary:hover {
+            background-color: #1d4ed8;
+        }
+
+        .btn-success {
+            background-color: #16a34a;
+            color: white;
+            margin-top: 10px;
+        }
+
+        .btn-success:hover {
+            background-color: #15803d;
+        }
+
+        .pix-area {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            display: none;
+            margin-top: 14px;
+        }
+
+        .pix-key {
+            background: white;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            word-break: break-all;
+            margin: 10px 0;
+            user-select: all;
+        }
+
+        .copy-btn {
+            background: #22c55e;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .copy-btn:hover {
+            background: #16a34a;
+        }
+
+        .loading {
+            font-size: 0.85rem;
+            color: #64748b;
+            text-align: center;
+            margin-top: 8px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Cristian Alves</h1>
+        <p>Entrega e Transporte Particular • Belém/PA</p>
+    </header>
+
+    <div class="container">
+        <!-- Dados do Cliente e Endereços -->
+        <div class="card">
+            <h2>📍 Dados da Solicitação</h2>
+            
+            <div class="form-group">
+                <label for="clientName">Seu Nome</label>
+                <input type="text" id="clientName" placeholder="Ex: João Silva">
+            </div>
+
+            <div class="form-group">
+                <label for="clientPhone">Seu WhatsApp</label>
+                <input type="tel" id="clientPhone" placeholder="Ex: (91) 98888-8888">
+            </div>
+
+            <!-- Coleta com Endereço + Número separados e botão GPS -->
+            <div class="form-group">
+                <label for="pickupAddress">Endereço de Coleta (Retirada)</label>
+                <div class="row-fields">
+                    <div class="main-field" style="position: relative;">
+                        <input type="text" id="pickupAddress" placeholder="Ex: Travessa 14 de Março, Belém">
+                        <div id="pickupSuggestions" class="suggestions"></div>
+                    </div>
+                    <div class="number-field">
+                        <input type="text" id="pickupNumber" placeholder="Nº / Comp">
+                    </div>
+                </div>
+                <button type="button" class="gps-btn" onclick="useCurrentLocation()">📍 Usar minha localização atual (GPS)</button>
+            </div>
+
+            <!-- Destino com Endereço + Número separados -->
+            <div class="form-group">
+                <label for="deliveryAddress">Endereço de Destino (Entrega)</label>
+                <div class="row-fields">
+                    <div class="main-field" style="position: relative;">
+                        <input type="text" id="deliveryAddress" placeholder="Ex: Rodovia Augusto Montenegro, Belém">
+                        <div id="deliverySuggestions" class="suggestions"></div>
+                    </div>
+                    <div class="number-field">
+                        <input type="text" id="deliveryNumber" placeholder="Nº / Comp">
+                    </div>
+                </div>
+            </div>
+
+            <div class="loading" id="loadingStatus">Calculando rota no mapa...</div>
+            <div id="map"></div>
+        </div>
+
+        <!-- Resumo do Cálculo -->
+        <div class="card" id="summaryCard" style="display: none;">
+            <h2>💰 Resumo do Valor</h2>
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span>Distância estimada:</span>
+                    <strong id="distText">0 km</strong>
+                </div>
+                <div class="summary-row">
+                    <span>Tarifa Base:</span>
+                    <span>R$ 3,00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Valor por Km (R$ 1,50):</span>
+                    <span id="kmValueText">R$ 0,00</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total da Corrida:</span>
+                    <strong id="totalText">R$ 0,00</strong>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="btnPay" onclick="showPixArea()">Aceitar e Pagar via Pix</button>
+
+            <!-- Área Pix -->
+            <div class="pix-area" id="pixArea">
+                <p style="font-size: 0.9rem; font-weight: 600; color: #166534;">Chave Pix (Aleatória):</p>
+                <div class="pix-key" id="pixKeyText">29a7259f-4483-41cc-8dbc-2c40eda657fd</div>
+                <button class="copy-btn" onclick="copyPixKey()">Copiar Chave Pix</button>
+                <p style="font-size: 0.75rem; color: #64748b; margin-top: 10px;">Após realizar o pagamento, clique no botão abaixo para enviar o pedido com o comprovante/detalhes.</p>
+            </div>
+
+            <button class="btn btn-success" id="btnWhatsapp" style="display: none;" onclick="sendToWhatsapp()">Enviar Pedido no WhatsApp</button>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet Routing Machine JS -->
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+        // Inicializar o mapa centrado em Belém/PA
+        const map = L.map('map').setView([-1.4558, -48.4902], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        let routingControl = null;
+        let calculatedDistanceKm = 0;
+        let calculatedFinalPrice = 0;
+        let pickupCoords = null;
+        let deliveryCoords = null;
+
+        // Função para autocomplete simples via Nominatim (OpenStreetMap)
+        function setupAutocomplete(inputId, suggestionsId, isPickup) {
+            const input = document.getElementById(inputId);
+            const suggestions = document.getElementById(suggestionsId);
+            let timeout = null;
+
+            input.addEventListener('input', function() {
+                clearTimeout(timeout);
+                const query = this.value;
+                if (query.length < 3) {
+                    suggestions.style.display = 'none';
+                    return;
+                }
+
+                timeout = setTimeout(() => {
+                    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Belém, Pará')}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            suggestions.innerHTML = '';
+                            if (data.length > 0) {
+                                suggestions.style.display = 'block';
+                                data.forEach(item => {
+                                    const div = document.createElement('div');
+                                    div.className = 'suggestion-item';
+                                    div.innerText = item.display_name;
+                                    div.onclick = function() {
+                                        input.value = item.display_name;
+                                        suggestions.style.display = 'none';
+                                        
+                                        const coords = L.latLng(parseFloat(item.lat), parseFloat(item.lon));
+                                        if (isPickup) {
+                                            pickupCoords = coords;
+                                            map.setView(pickupCoords, 15);
+                                        } else {
+                                            deliveryCoords = coords;
+                                        }
+                                        
+                                        checkAndCalculateRoute();
+                                    };
+                                    suggestions.appendChild(div);
+                                });
+                            } else {
+                                suggestions.style.display = 'none';
+                            }
+                        })
+                        .catch(err => console.error(err));
+                }, 400);
+            });
+
+            document.addEventListener('click', function(e) {
+                if (e.target !== input) {
+                    suggestions.style.display = 'none';
+                }
+            });
+        }
+
+        setupAutocomplete('pickupAddress', 'pickupSuggestions', true);
+        setupAutocomplete('deliveryAddress', 'deliverySuggestions', false);
+
+        // Usar Geolocalização do Navegador (GPS) para Coleta
+        function useCurrentLocation() {
+            if (!navigator.geolocation) {
+                alert('Seu navegador não suporta geolocalização.');
+                return;
+            }
+
+            document.getElementById('loadingStatus').innerText = 'Obtendo sua localização atual...';
+            document.getElementById('loadingStatus').style.display = 'block';
+
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                pickupCoords = L.latLng(lat, lon);
+
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.display_name) {
+                            document.getElementById('pickupAddress').value = data.display_name;
+                        } else {
+                            document.getElementById('pickupAddress').value = `Localização Atual (GPS)`;
+                        }
+                        document.getElementById('loadingStatus').style.display = 'none';
+                        map.setView(pickupCoords, 16);
+                        checkAndCalculateRoute();
+                    })
+                    .catch(() => {
+                        document.getElementById('pickupAddress').value = `Localização Atual (GPS)`;
+                        document.getElementById('loadingStatus').style.display = 'none';
+                        map.setView(pickupCoords, 16);
+                        checkAndCalculateRoute();
+                    });
+
+            }, function(error) {
+                document.getElementById('loadingStatus').style.display = 'none';
+                alert('Não foi possível obter sua localização. Verifique as permissões do GPS.');
+            }, { timeout: 10000, enableHighAccuracy: true });
+        }
+
+        function geocodeAddress(address, isPickup, callback) {
+            if (isPickup && pickupCoords) {
+                callback(pickupCoords);
+                return;
+            }
+            if (!isPickup && deliveryCoords) {
+                callback(deliveryCoords);
+                return;
+            }
+
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        const latLng = L.latLng(parseFloat(data[0].lat), parseFloat(data[0].lon));
+                        if (isPickup) pickupCoords = latLng;
+                        else deliveryCoords = latLng;
+                        callback(latLng);
+                    } else {
+                        callback(null);
+                    }
+                })
+                .catch(() => callback(null));
+        }
+
+        function checkAndCalculateRoute() {
+            const pickup = document.getElementById('pickupAddress').value;
+            const delivery = document.getElementById('deliveryAddress').value;
+
+            if (!pickup || !delivery) return;
+
+            document.getElementById('loadingStatus').style.display = 'block';
+            document.getElementById('loadingStatus').innerText = 'Calculando rota no mapa...';
+
+            geocodeAddress(pickup, true, function(latLngPickup) {
+                if (!latLngPickup) {
+                    alert('Não foi possível localizar o endereço de coleta.');
+                    document.getElementById('loadingStatus').style.display = 'none';
+                    return;
+                }
+
+                geocodeAddress(delivery, false, function(latLngDelivery) {
+                    if (!latLngDelivery) {
+                        alert('Não foi possível localizar o endereço de destino.');
+                        document.getElementById('loadingStatus').style.display = 'none';
+                        return;
+                    }
+
+                    document.getElementById('loadingStatus').style.display = 'none';
+
+                    if (routingControl) {
+                        map.removeControl(routingControl);
+                    }
+
+                    routingControl = L.Routing.control({
+                        waypoints: [latLngPickup, latLngDelivery],
+                        routeWhileDragging: false,
+                        addWaypoints: false,
+                        createMarker: function() { return null; },
+                        lineOptions: {
+                            styles: [{ color: '#2563eb', weight: 5, opacity: 0.8 }]
+                        },
+                        show: false
+                    }).addTo(map);
+
+                    routingControl.on('routesfound', function(e) {
+                        const routes = e.routes;
+                        const summary = routes[0].summary;
+                        const distanceMeters = summary.totalDistance;
+                        calculatedDistanceKm = distanceMeters / 1000;
+
+                        const baseRate = 3.00;
+                        const kmRate = 1.50;
+                        let rawValue = baseRate + (calculatedDistanceKm * kmRate);
+                        
+                        calculatedFinalPrice = rawValue < 10.00 ? 10.00 : rawValue;
+
+                        document.getElementById('distText').innerText = calculatedDistanceKm.toFixed(2) + ' km';
+                        document.getElementById('kmValueText').innerText = 'R$ ' + (calculatedDistanceKm * kmRate).toFixed(2).replace('.', ',');
+                        document.getElementById('totalText').innerText = 'R$ ' + calculatedFinalPrice.toFixed(2).replace('.', ',');
+                        
+                        document.getElementById('summaryCard').style.display = 'block';
+                    });
+                });
+            });
+        }
+
+        function showPixArea() {
+            const name = document.getElementById('clientName').value;
+            const phone = document.getElementById('clientPhone').value;
+
+            if (!name || !phone) {
+                alert('Por favor, preencha seu Nome e WhatsApp antes de continuar.');
+                document.getElementById('clientName').focus();
+                return;
+            }
+
+            document.getElementById('pixArea').style.display = 'block';
+            document.getElementById('btnPay').style.display = 'none';
+            document.getElementById('btnWhatsapp').style.display = 'block';
+        }
+
+        function copyPixKey() {
+            const keyText = document.getElementById('pixKeyText').innerText;
+            navigator.clipboard.writeText(keyText).then(() => {
+                alert('Chave Pix copiada com sucesso!');
+            }).catch(err => {
+                console.error('Erro ao copiar chave pix: ', err);
+            });
+        }
+
+        function sendToWhatsapp() {
+            const name = document.getElementById('clientName').value;
+            const phone = document.getElementById('clientPhone').value;
+            
+            const pickupBase = document.getElementById('pickupAddress').value;
+            const pickupNum = document.getElementById('pickupNumber').value;
+            const pickup = pickupNum ? `${pickupBase}, Nº ${pickupNum}` : pickupBase;
+
+            const deliveryBase = document.getElementById('deliveryAddress').value;
+            const deliveryNum = document.getElementById('deliveryNumber').value;
+            const delivery = deliveryNum ? `${deliveryBase}, Nº ${deliveryNum}` : deliveryBase;
+            
+            let pickupMapLink = pickup;
+            let deliveryMapLink = delivery;
+
+            if (pickupCoords) {
+                pickupMapLink = `https://www.google.com/maps/search/?api=1&query=${pickupCoords.lat},${pickupCoords.lng}`;
+            }
+            if (deliveryCoords) {
+                deliveryMapLink = `https://www.google.com/maps/search/?api=1&query=${deliveryCoords.lat},${deliveryCoords.lng}`;
+            }
+
+            const message = `*Nova Solicitação de Entrega/Transporte*
+
+` +
+                `👤 *Nome:* ${name}
+` +
+                `📱 *Telefone:* ${phone}
+` +
+                `📍 *Coleta:* ${pickup}
+` +
+                `🗺️ *Abrir Coleta no Maps:* ${pickupMapLink}
+
+` +
+                `🏁 *Destino:* ${delivery}
+` +
+                `🗺️ *Abrir Destino no Maps:* ${deliveryMapLink}
+
+` +
+                `📏 *Distância:* ${calculatedDistanceKm.toFixed(2)} km
+` +
+                `💰 *Valor Total:* R$ ${calculatedFinalPrice.toFixed(2).replace('.', ',')}
+` +
+                `💳 *Forma de Pagamento:* Pix realizado`;
+
+            const whatsappUrl = `https://wa.me/5591992324179?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+        }
+    </script>
+</body>
+</html>
