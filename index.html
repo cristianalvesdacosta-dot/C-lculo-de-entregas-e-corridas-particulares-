@@ -309,6 +309,26 @@
             margin-top: 8px;
             display: none;
         }
+
+        /* Rodapé com acesso restrito para o Entregador */
+        .driver-footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 10px;
+        }
+
+        .driver-login-link {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .driver-login-link:hover {
+            color: #475569;
+        }
     </style>
 </head>
 <body>
@@ -319,12 +339,14 @@
     </header>
 
     <div class="container">
-        <!-- Painel do Motoboy -->
-        <div class="card" style="background: #f8fafc; border: 1px dashed #cbd5e1;">
-            <h2>🏍️ Painel do Entregador (GPS & Nuvem)</h2>
+        <!-- Painel do Motoboy Protegido por Senha (Oculto por padrão) -->
+        <div class="card" id="driverPanelCard" style="background: #f8fafc; border: 1px dashed #cbd5e1; display: none;">
+            <h2>🏍️ Painel do Entregador (Restrito)</h2>
             <button type="button" class="gps-btn" onclick="updateMyGPS()">📍 Atualizar minha posição atual na nuvem</button>
             <button type="button" id="btnToggleLive" class="gps-btn live-btn" onclick="toggleLiveTracking()">🔴 Ligar Transmissão ao Vivo (Firebase)</button>
-            <p id="myGpsStatus" style="font-size: 0.75rem; color: #64748b; margin-top: 6px; text-align: center;">Usando Belém (Centro) como base padrão.</p>
+            <button type="button" class="gps-btn" style="background: #fee2e2; color: #991b1b; border-color: #fca5a5;" onclick="goOffline()">❌ Ficar Offline (Remover Moto do Mapa)</button>
+            <button type="button" class="gps-btn" style="background: #e2e8f0; margin-top: 6px;" onclick="lockDriverPanel()">🔒 Fechar Painel</button>
+            <p id="myGpsStatus" style="font-size: 0.75rem; color: #64748b; margin-top: 6px; text-align: center;">Painel desbloqueado com sucesso.</p>
         </div>
 
         <!-- Dados do Pedido -->
@@ -413,6 +435,11 @@
 
             <button class="btn btn-success" id="btnWhatsapp" style="display: none;" onclick="sendToWhatsapp()">Enviar Pedido no WhatsApp</button>
         </div>
+
+        <!-- Rodapé com link secreto para o Entregador -->
+        <div class="driver-footer">
+            <button type="button" class="driver-login-link" onclick="promptDriverLogin()">🔐 Área do Entregador (Acesso Restrito)</button>
+        </div>
     </div>
 
     <!-- Leaflet JS -->
@@ -445,6 +472,9 @@
         let isLiveActive = false;
         let motoMarker = null;
 
+        // Senha para acessar o painel do entregador (Você pode alterar aqui se quiser)
+        const DRIVER_PASSWORD = "123";
+
         // Ícone personalizado de moto pequena preta
         const blackMotoIcon = L.divIcon({
             className: 'moto-marker-icon',
@@ -452,6 +482,20 @@
             iconSize: [36, 36],
             iconAnchor: [18, 18]
         });
+
+        function promptDriverLogin() {
+            const pass = prompt("Digite a senha do entregador:");
+            if (pass === DRIVER_PASSWORD) {
+                document.getElementById('driverPanelCard').style.display = 'block';
+                alert('Painel desbloqueado com sucesso!');
+            } else if (pass !== null) {
+                alert('Senha incorreta!');
+            }
+        }
+
+        function lockDriverPanel() {
+            document.getElementById('driverPanelCard').style.display = 'none';
+        }
 
         function saveInputs() {
             localStorage.setItem('clientName', document.getElementById('clientName').value);
@@ -476,18 +520,19 @@
                 document.getElementById('btnWhatsapp').style.display = 'block';
             }
 
-            if(localStorage.getItem('myLat') && localStorage.getItem('myLon')) {
-                const savedLat = parseFloat(localStorage.getItem('myLat'));
-                const savedLon = parseFloat(localStorage.getItem('myLon'));
-                myCurrentCoords = L.latLng(savedLat, savedLon);
-                updateMotoMarkerOnMap(myCurrentCoords);
-            }
-
-            db.ref('entregador/posicao').on('value', (snapshot) => {
+            // Escuta a posição do entregador no Firebase em tempo real
+            db.ref('entregador').on('value', (snapshot) => {
                 const data = snapshot.val();
-                if (data && data.lat && data.lon) {
+                if (data && data.status === 'online' && data.lat && data.lon) {
                     const liveLatLng = L.latLng(data.lat, data.lon);
+                    myCurrentCoords = liveLatLng;
                     updateMotoMarkerOnMap(liveLatLng);
+                } else {
+                    // Se estiver offline, remove a moto do mapa
+                    if (motoMarker) {
+                        map.removeLayer(motoMarker);
+                        motoMarker = null;
+                    }
                 }
             });
 
@@ -515,10 +560,9 @@
             document.getElementById('myGpsStatus').innerText = 'Obtendo sua localização atual...';
             navigator.geolocation.getCurrentPosition(function(position) {
                 myCurrentCoords = L.latLng(position.coords.latitude, position.coords.longitude);
-                localStorage.setItem('myLat', position.coords.latitude);
-                localStorage.setItem('myLon', position.coords.longitude);
                 
-                db.ref('entregador/posicao').set({
+                db.ref('entregador').set({
+                    status: 'online',
                     lat: position.coords.latitude,
                     lon: position.coords.longitude,
                     timestamp: Date.now()
@@ -527,7 +571,7 @@
                 updateMotoMarkerOnMap(myCurrentCoords);
                 map.setView(myCurrentCoords, 15);
 
-                document.getElementById('myGpsStatus').innerText = 'Sua posição atual foi enviada para a nuvem!';
+                document.getElementById('myGpsStatus').innerText = 'Posição atualizada e online na nuvem!';
                 if(document.getElementById('pickupAddress').value) {
                     calculateAll();
                 }
@@ -537,7 +581,23 @@
             }, { timeout: 10000, enableHighAccuracy: true });
         }
 
-        // Função para preencher Coleta ou Destino com o GPS atual do usuário/cliente
+        function goOffline() {
+            if (confirm('Deseja ficar offline? Sua moto vai sumir do mapa dos clientes.')) {
+                if (isLiveActive) {
+                    toggleLiveTracking(); // Para o watchPosition se estiver ativo
+                }
+                db.ref('entregador').set({
+                    status: 'offline'
+                });
+                if (motoMarker) {
+                    map.removeLayer(motoMarker);
+                    motoMarker = null;
+                }
+                document.getElementById('myGpsStatus').innerText = 'Você está offline.';
+                alert('Você agora está offline. Ninguém verá sua localização.');
+            }
+        }
+
         function useGpsForField(fieldType) {
             if (!navigator.geolocation) {
                 alert('Seu navegador não suporta GPS.');
@@ -549,7 +609,6 @@
                 const lon = position.coords.longitude;
                 const latLng = L.latLng(lat, lon);
 
-                // Busca o endereço correspondente via Nominatim (Reverse Geocoding)
                 fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
                     .then(res => res.json())
                     .then(data => {
@@ -564,7 +623,6 @@
                         }
 
                         saveInputs();
-                        updateMotoMarkerOnMap(latLng);
                         map.setView(latLng, 15);
                         calculateAll();
                     })
@@ -587,14 +645,13 @@
                 isLiveActive = true;
                 btn.classList.add('active');
                 btn.innerText = '🟢 Transmissão ao Vivo Ativa (Parar)';
-                document.getElementById('myGpsStatus').innerText = 'Transmitindo sua localização em tempo real...';
+                document.getElementById('myGpsStatus').innerText = 'Transmitindo em tempo real...';
 
                 watchId = navigator.geolocation.watchPosition(function(position) {
                     myCurrentCoords = L.latLng(position.coords.latitude, position.coords.longitude);
-                    localStorage.setItem('myLat', position.coords.latitude);
-                    localStorage.setItem('myLon', position.coords.longitude);
 
-                    db.ref('entregador/posicao').set({
+                    db.ref('entregador').set({
+                        status: 'online',
                         lat: position.coords.latitude,
                         lon: position.coords.longitude,
                         timestamp: Date.now()
