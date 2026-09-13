@@ -68,7 +68,7 @@
         }
 
         .form-group {
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
 
         .row-fields {
@@ -129,6 +129,25 @@
             background: #e2e8f0;
         }
 
+        .inline-gps {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+            font-size: 0.75rem;
+            padding: 6px 10px;
+            margin-top: 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .inline-gps:hover {
+            background: #dbeafe;
+        }
+
         .live-btn {
             background: #dc2626;
             color: white;
@@ -176,7 +195,7 @@
             border: 1px solid #e2e8f0;
         }
 
-        /* Estilo personalizado para o ícone da moto preta no mapa */
+        /* Ícone da moto preta no mapa */
         .moto-marker-icon {
             background: #0f172a;
             border: 2px solid #ffffff;
@@ -300,12 +319,12 @@
     </header>
 
     <div class="container">
-        <!-- Painel do Motoboy com os DOIS botões de GPS -->
+        <!-- Painel do Motoboy -->
         <div class="card" style="background: #f8fafc; border: 1px dashed #cbd5e1;">
             <h2>🏍️ Painel do Entregador (GPS & Nuvem)</h2>
-            <button type="button" class="gps-btn" onclick="updateMyGPS()">📍 Usar minha localização atual</button>
+            <button type="button" class="gps-btn" onclick="updateMyGPS()">📍 Atualizar minha posição atual na nuvem</button>
             <button type="button" id="btnToggleLive" class="gps-btn live-btn" onclick="toggleLiveTracking()">🔴 Ligar Transmissão ao Vivo (Firebase)</button>
-            <p id="myGpsStatus" style="font-size: 0.75rem; color: #64748b; margin-top: 6px; text-align: center;">Usando Belém (Centro) como base padrão. Clique em atualizar antes de calcular.</p>
+            <p id="myGpsStatus" style="font-size: 0.75rem; color: #64748b; margin-top: 6px; text-align: center;">Usando Belém (Centro) como base padrão.</p>
         </div>
 
         <!-- Dados do Pedido -->
@@ -334,6 +353,7 @@
                         <input type="text" id="pickupNumber" placeholder="Nº / Comp" oninput="saveInputs()">
                     </div>
                 </div>
+                <button type="button" class="inline-gps" onclick="useGpsForField('pickup')">📍 Usar minha localização atual aqui (Coleta)</button>
             </div>
 
             <!-- Destino -->
@@ -348,6 +368,7 @@
                         <input type="text" id="deliveryNumber" placeholder="Nº / Comp" oninput="saveInputs()">
                     </div>
                 </div>
+                <button type="button" class="inline-gps" onclick="useGpsForField('delivery')">📍 Usar minha localização atual aqui (Destino)</button>
             </div>
 
             <div class="loading" id="loadingStatus">Calculando rotas e distâncias...</div>
@@ -459,9 +480,6 @@
                 const savedLat = parseFloat(localStorage.getItem('myLat'));
                 const savedLon = parseFloat(localStorage.getItem('myLon'));
                 myCurrentCoords = L.latLng(savedLat, savedLon);
-                document.getElementById('myGpsStatus').innerText = 'Sua posição atual está salva!';
-                
-                // Exibe a moto no mapa ao carregar se já houver posição salva
                 updateMotoMarkerOnMap(myCurrentCoords);
             }
 
@@ -509,13 +527,53 @@
                 updateMotoMarkerOnMap(myCurrentCoords);
                 map.setView(myCurrentCoords, 15);
 
-                document.getElementById('myGpsStatus').innerText = 'Sua localização atual foi definida com sucesso!';
+                document.getElementById('myGpsStatus').innerText = 'Sua posição atual foi enviada para a nuvem!';
                 if(document.getElementById('pickupAddress').value) {
                     calculateAll();
                 }
             }, function() {
                 alert('Não foi possível obter sua localização. Verifique o GPS.');
-                document.getElementById('myGpsStatus').innerText = 'Erro ao obter GPS. Usando base padrão.';
+                document.getElementById('myGpsStatus').innerText = 'Erro ao obter GPS.';
+            }, { timeout: 10000, enableHighAccuracy: true });
+        }
+
+        // Função para preencher Coleta ou Destino com o GPS atual do usuário/cliente
+        function useGpsForField(fieldType) {
+            if (!navigator.geolocation) {
+                alert('Seu navegador não suporta GPS.');
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                const latLng = L.latLng(lat, lon);
+
+                // Busca o endereço correspondente via Nominatim (Reverse Geocoding)
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const formattedAddress = data.display_name || 'Localização Atual por GPS';
+                        
+                        if (fieldType === 'pickup') {
+                            document.getElementById('pickupAddress').value = formattedAddress;
+                            pickupCoords = latLng;
+                        } else {
+                            document.getElementById('deliveryAddress').value = formattedAddress;
+                            deliveryCoords = latLng;
+                        }
+
+                        saveInputs();
+                        updateMotoMarkerOnMap(latLng);
+                        map.setView(latLng, 15);
+                        calculateAll();
+                    })
+                    .catch(() => {
+                        alert('Erro ao buscar o nome do endereço pelo GPS.');
+                    });
+
+            }, function() {
+                alert('Não foi possível capturar sua localização atual.');
             }, { timeout: 10000, enableHighAccuracy: true });
         }
 
@@ -529,7 +587,7 @@
                 isLiveActive = true;
                 btn.classList.add('active');
                 btn.innerText = '🟢 Transmissão ao Vivo Ativa (Parar)';
-                document.getElementById('myGpsStatus').innerText = 'Transmitindo sua localização em tempo real para a nuvem...';
+                document.getElementById('myGpsStatus').innerText = 'Transmitindo sua localização em tempo real...';
 
                 watchId = navigator.geolocation.watchPosition(function(position) {
                     myCurrentCoords = L.latLng(position.coords.latitude, position.coords.longitude);
